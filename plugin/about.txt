@@ -1,0 +1,3 @@
+Keeps a "Last Read" (datetime) custom column current from the calibre e-book viewer's own
+annotation files, and sorts the library by it (newest first) on startup and after each read.
+Works however the viewer was launched; reads made while calibre was closed are picked up on next start.

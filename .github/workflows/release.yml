@@ -1,0 +1,51 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:  # manual run on a branch: tests + build only, never publishes
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag must match plugin version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          python3 - <<'EOF'
+          import os, re, sys
+          m = re.search(r'version = \((\d+), (\d+), (\d+)\)', open('plugin/__init__.py').read())
+          version = 'v' + '.'.join(m.groups())
+          tag = os.environ['GITHUB_REF_NAME']
+          if version != tag:
+              sys.exit(f'tag {tag} does not match plugin version {version}')
+          print('version ok:', version)
+          EOF
+
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests
+
+      - name: Build plugin zip
+        run: ./build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LastRead.zip
+          path: dist/LastRead.zip
+
+      - name: Publish release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/LastRead.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/LastRead.zip --verify-tag \
+              --title "$GITHUB_REF_NAME" --generate-notes
+          fi
